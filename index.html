@@ -7,7 +7,7 @@
     <style>
         body {
             margin: 0; overflow: hidden;
-            background-color: #638599; /* Darker Mountain Sky */
+            background-color: #638599; 
             font-family: 'Courier New', Courier, monospace;
             display: flex; justify-content: center; align-items: center;
             height: 100vh; user-select: none; -webkit-user-select: none; touch-action: none;
@@ -79,10 +79,9 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
-        // --- GAME SETTINGS ---
         const CONFIG = {
-            walkThreshold: 10,   // Volume to start walking
-            jumpThreshold: 65,   // Volume to trigger jump
+            walkThreshold: 10,   
+            jumpThreshold: 65,   
             gravity: 0.5,
             jumpForce: -13,
             baseSpeed: 4
@@ -100,9 +99,8 @@
 
         canvas.width = 800;
         canvas.height = 400;
-        ctx.imageSmoothingEnabled = false; // Retro pixel look
+        ctx.imageSmoothingEnabled = false; 
 
-        // --- GLOBAL VARIABLES ---
         let audioContext, analyser, dataArray;
         let gameRunning = false;
         let distance = 0;
@@ -119,26 +117,18 @@
             images: {},
             sounds: {},
             loaded: 0,
-            toLoad: 2, // Waiting for 2 images
+            toLoad: 2, 
             onReady: null,
 
             loadImages: function() {
-                // 1. Load Tree
                 this.images.tree = new Image();
                 this.images.tree.onload = () => { console.log("Tree loaded"); this.assetLoaded(); };
-                this.images.tree.onerror = () => { 
-                    console.warn("Tree image missing"); 
-                    this.assetLoaded(); // Proceed anyway (will use fallback)
-                };
+                this.images.tree.onerror = () => { console.warn("Tree missing"); this.assetLoaded(); };
                 this.images.tree.src = 'media/pine_tree.png'; 
 
-                // 2. Load Ground
                 this.images.ground = new Image();
                 this.images.ground.onload = () => { console.log("Ground loaded"); this.assetLoaded(); };
-                this.images.ground.onerror = () => { 
-                    console.warn("Ground image missing"); 
-                    this.assetLoaded(); // Proceed anyway
-                };
+                this.images.ground.onerror = () => { console.warn("Ground missing"); this.assetLoaded(); };
                 this.images.ground.src = 'media/mountain_ground.png'; 
             },
 
@@ -159,24 +149,30 @@
                 }
             },
 
-            // Safe play methods
             playJump: function() { if(this.sounds.jump) { this.sounds.jump.currentTime = 0; this.sounds.jump.play().catch(e=>{}); } },
             playDeath: function() { if(this.sounds.death) { this.sounds.death.play().catch(e=>{}); } }
         };
 
-        // --- INITIALIZATION ---
+        // --- GAME START LOGIC ---
         async function startGame() {
             startBtn.disabled = true;
-            startBtn.innerText = "Loading Files...";
             errorLog.style.display = 'none';
 
-            // Callback for when images are done/checked
+            // FIX: If we played once, assets are already loaded. 
+            // Skip loading and go straight to audio init.
+            if (Assets.loaded >= Assets.toLoad) {
+                startBtn.innerText = "Restarting...";
+                await initializeAudio();
+                return;
+            }
+
+            startBtn.innerText = "Loading Files...";
+
             Assets.onReady = async () => {
                 startBtn.innerText = "Connecting Mic...";
                 await initializeAudio();
             };
 
-            // Start loading
             Assets.loadImages();
             Assets.loadSounds();
         }
@@ -196,14 +192,12 @@
                 source.connect(analyser);
                 dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-                // Start Loop
                 startScreen.style.display = 'none';
                 resetGame();
                 gameRunning = true;
                 
-                // Try playing music
                 if(Assets.sounds.music) {
-                    Assets.sounds.music.play().catch(e => console.log("Auto-play blocked, touch screen to start music later"));
+                    Assets.sounds.music.play().catch(e => console.log("Auto-play blocked"));
                 }
                 
                 requestAnimationFrame(gameLoop);
@@ -211,9 +205,9 @@
             } catch (err) {
                 console.error(err);
                 if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                    showError("Microphone Access Denied! Please refresh and click 'Allow' in the popup.");
+                    showError("Microphone Access Denied! Please refresh and click 'Allow'.");
                 } else {
-                    showError("Error: " + err.message + " (Are you using HTTPS or localhost?)");
+                    showError("Error: " + err.message);
                 }
                 startBtn.disabled = false;
                 startBtn.innerText = "Try Again";
@@ -228,10 +222,10 @@
             let sum = 0;
             for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
             let avg = sum / dataArray.length;
-            return Math.min(100, avg * 2.8); // Sensitivity Multiplier
+            return Math.min(100, avg * 2.8); 
         }
 
-        // --- GAME LOGIC ---
+        // --- GAMEPLAY LOGIC ---
         function resetGame() {
             player.y = 320; player.vy = 0; player.grounded = true;
             movingMomentum = false; wasWalking = false;
@@ -239,10 +233,8 @@
             scoreEl.innerText = "0m"; levelEl.innerText = "Level 1";
             obstacles = []; clouds = [];
             
-            // Initial floor
             obstacles.push({ x: 0, y: 350, w: 800, h: 50, type: 'floor' });
             
-            // Initial clouds
             for(let i=0; i<6; i++) {
                 clouds.push({ x: Math.random() * canvas.width, y: Math.random() * 150, size: 20 + Math.random() * 30, speed: 0.5 + Math.random() * 1 });
             }
@@ -296,7 +288,7 @@
                 if (wantsToJump) {
                     player.vy = CONFIG.jumpForce;
                     player.grounded = false;
-                    movingMomentum = wasWalking; // Momentum logic
+                    movingMomentum = wasWalking; 
                     Assets.playJump(); 
                     statusEl.innerText = movingMomentum ? "JUMP FWD" : "JUMP UP";
                     statusEl.style.color = "#e74c3c";
@@ -313,7 +305,6 @@
             player.vy += CONFIG.gravity; 
             player.y += player.vy;
 
-            // Move World
             if (movingMomentum) {
                 let currentSpeed = CONFIG.baseSpeed * speedMultiplier;
                 distance += currentSpeed;
@@ -323,10 +314,8 @@
                 spawnTerrain(); spawnClouds();
             }
 
-            // Cleanup clouds
             for (let i = clouds.length - 1; i >= 0; i--) { if (clouds[i].x < -100) clouds.splice(i, 1); }
 
-            // Collision Detection
             player.grounded = false; 
             let pB = player.y + player.height/2; 
             let pR = player.x + player.width/2; 
@@ -349,47 +338,39 @@
             if (player.y > canvas.height + 50) gameOver();
         }
 
-        // --- DRAWING ---
         function drawReindeer(x, y, grounded) {
             let startX = x - 15; let startY = y - 15;
-            ctx.fillStyle = "#8B4513"; ctx.fillRect(startX + 5, startY + 10, 20, 12); // Body
-            ctx.fillStyle = "#A0522D"; ctx.fillRect(startX + 20, startY + 5, 10, 10); // Head
-            ctx.fillStyle = "#FF0000"; ctx.fillRect(startX + 28, startY + 8, 4, 4); // Nose
-            ctx.fillStyle = "#5D4037"; // Legs
+            ctx.fillStyle = "#8B4513"; ctx.fillRect(startX + 5, startY + 10, 20, 12); 
+            ctx.fillStyle = "#A0522D"; ctx.fillRect(startX + 20, startY + 5, 10, 10); 
+            ctx.fillStyle = "#FF0000"; ctx.fillRect(startX + 28, startY + 8, 4, 4); 
+            ctx.fillStyle = "#5D4037"; 
             if (grounded) { ctx.fillRect(startX + 8, startY + 22, 4, 8); ctx.fillRect(startX + 20, startY + 22, 4, 8); } 
             else { ctx.fillRect(startX + 5, startY + 20, 4, 6); ctx.fillRect(startX + 22, startY + 24, 4, 6); }
-            ctx.fillStyle = "#D2B48C"; // Antlers
+            ctx.fillStyle = "#D2B48C"; 
             ctx.fillRect(startX + 21, startY, 2, 5); ctx.fillRect(startX + 19, startY-3, 2, 3);
             ctx.fillRect(startX + 26, startY, 2, 5); ctx.fillRect(startX + 28, startY-3, 2, 3);
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Clouds
             ctx.fillStyle = "rgba(236, 240, 241, 0.8)";
             for (let c of clouds) { ctx.fillRect(c.x, c.y, c.size, c.size/2); ctx.fillRect(c.x+5, c.y-5, c.size-10, c.size/2+5); }
             
-            // Obstacles
             for (let ob of obstacles) {
                 if (ob.type === 'pit_marker') continue;
                 
                 if (ob.type === 'tree') {
-                    // Safety: Check if image is loaded and valid
                     if(Assets.images.tree.complete && Assets.images.tree.naturalWidth > 0) {
                          ctx.drawImage(Assets.images.tree, ob.x, ob.y, ob.w, ob.h);
                     } else {
-                        // Fallback Box (Green)
                         ctx.fillStyle = '#27ae60'; ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
                     }
                 } else {
-                    // Ground
                     if(Assets.images.ground.complete && Assets.images.ground.naturalWidth > 0) {
                         let pattern = ctx.createPattern(Assets.images.ground, 'repeat');
                         ctx.fillStyle = pattern;
                         ctx.save(); ctx.translate(ob.x, ob.y); ctx.fillRect(0, 0, ob.w, ob.h); ctx.restore();
                     } else {
-                        // Fallback Box (Brown)
                         ctx.fillStyle = '#5d4037'; ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
                     }
                 }
