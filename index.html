@@ -1,7 +1,88 @@
-<script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Reindeer Mountain Adventure</title>
+    <style>
+        body {
+            margin: 0; overflow: hidden;
+            background-color: #638599; /* Darker Mountain Sky */
+            font-family: 'Courier New', Courier, monospace;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; user-select: none; -webkit-user-select: none; touch-action: none;
+        }
+        canvas {
+            border: 4px solid #2c3e50; background-color: #638599;
+            box-shadow: 0px 5px 20px rgba(0,0,0,0.4);
+            display: block; image-rendering: pixelated; 
+            max-width: 100%; max-height: 100%; width: 800px; height: auto;
+        }
+        #ui-layer {
+            position: absolute; top: 10px; left: 10px; right: 10px; pointer-events: none;
+            background: rgba(44, 62, 80, 0.95);
+            padding: 10px; border: 2px solid #1a252f; color: #ecf0f1;
+            box-shadow: 3px 3px 0px rgba(0,0,0,0.6);
+            display: flex; flex-direction: column; gap: 5px; max-width: 400px; margin: 0 auto;
+            border-radius: 8px;
+        }
+        .top-row { display: flex; justify-content: space-between; align-items: center; }
+        #score { font-size: 20px; font-weight: 900; color: #f1c40f; }
+        #level-indicator { font-size: 12px; color: #e74c3c; font-weight: bold; text-transform: uppercase; }
+        #status { font-size: 12px; font-weight: bold; color: #bdc3c7; text-align: right;}
+        .meter-box { width: 100%; height: 15px; background: #34495e; border: 2px solid #1a252f; position: relative; overflow: hidden; border-radius: 4px; }
+        .meter-fill { height: 100%; background: #2ecc71; width: 0%; transition: width 0.05s ease-out; }
+        .marker { position: absolute; top: 0; bottom: 0; width: 2px; background: #ecf0f1; z-index: 2; }
+        #start-screen {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #ecf0f1; padding: 25px; text-align: center;
+            border: 4px solid #2c3e50; box-shadow: 5px 5px 0px #000;
+            width: 85%; max-width: 400px; z-index: 100; border-radius: 10px;
+        }
+        button {
+            background-color: #c0392b; color: white; border: 3px solid #000;
+            padding: 15px; width: 100%; font-size: 18px; font-weight: 900;
+            cursor: pointer; box-shadow: 3px 3px 0 #000; margin-top: 20px;
+            font-family: 'Courier New', Courier, monospace; -webkit-appearance: none; border-radius: 5px;
+        }
+        button:active { box-shadow: 0 0 0 #000; transform: translateY(3px); }
+        button:disabled { background-color: #7f8c8d; color: #bdc3c7; cursor: not-allowed; }
+        .error-msg { color: #c0392b; font-weight: bold; background: #fadbd8; padding: 10px; border: 2px solid #c0392b; margin-top: 15px; display: none; font-size: 12px; text-align: left;}
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div class="top-row">
+            <div id="score">0m</div>
+            <div id="status">Waiting...</div>
+        </div>
+        <div id="level-indicator">Level 1</div>
+        <div class="meter-box">
+            <div id="vol-bar" class="meter-fill"></div>
+            <div class="marker" style="left: 10%;"></div> 
+            <div class="marker" style="left: 65%;"></div>
+        </div>
+    </div>
+
+    <div id="start-screen">
+        <h1 style="font-size: 24px; margin-bottom: 10px; margin-top:0;">Mountain Adventure</h1>
+        <div style="background:#bdc3c7; padding:10px; border-radius:5px; font-size:13px; text-align:left; color:#2c3e50;">
+            <p style="margin:5px 0;">🎤 <b>Microphone Required</b></p>
+            <p style="margin:5px 0;">🗣️ <b>Talk</b> to Run Forward</p>
+            <p style="margin:5px 0;">📢 <b>Shout</b> to Jump</p>
+        </div>
+        <button id="start-btn" onclick="startGame()">START GAME</button>
+        <p id="error-log" class="error-msg"></p>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        // --- GAME SETTINGS ---
         const CONFIG = {
-            walkThreshold: 10, 
-            jumpThreshold: 65, 
+            walkThreshold: 10,   // Volume to start walking
+            jumpThreshold: 65,   // Volume to trigger jump
             gravity: 0.5,
             jumpForce: -13,
             baseSpeed: 4
@@ -19,43 +100,43 @@
 
         canvas.width = 800;
         canvas.height = 400;
-        ctx.imageSmoothingEnabled = false;
+        ctx.imageSmoothingEnabled = false; // Retro pixel look
 
+        // --- GLOBAL VARIABLES ---
         let audioContext, analyser, dataArray;
         let gameRunning = false;
         let distance = 0;
         let speedMultiplier = 1;
+        
         let player = { x: 150, y: 320, width: 30, height: 30, vy: 0, grounded: true };
         let movingMomentum = false; 
         let wasWalking = false;     
         let obstacles = [];
         let clouds = [];
 
-        // --- ROBUST ASSET LOADER ---
+        // --- ASSET LOADER ---
         const Assets = {
             images: {},
             sounds: {},
             loaded: 0,
-            toLoad: 2, 
+            toLoad: 2, // Waiting for 2 images
             onReady: null,
 
             loadImages: function() {
-                // TREE
+                // 1. Load Tree
                 this.images.tree = new Image();
                 this.images.tree.onload = () => { console.log("Tree loaded"); this.assetLoaded(); };
                 this.images.tree.onerror = () => { 
-                    console.error("MISSING: media/pine_tree.png"); 
-                    showError("Warning: 'pine_tree.png' not found."); 
-                    this.assetLoaded(); // Proceed anyway to avoid freeze
+                    console.warn("Tree image missing"); 
+                    this.assetLoaded(); // Proceed anyway (will use fallback)
                 };
                 this.images.tree.src = 'media/pine_tree.png'; 
 
-                // GROUND
+                // 2. Load Ground
                 this.images.ground = new Image();
                 this.images.ground.onload = () => { console.log("Ground loaded"); this.assetLoaded(); };
                 this.images.ground.onerror = () => { 
-                    console.error("MISSING: media/mountain_ground.png"); 
-                    showError("Warning: 'mountain_ground.png' not found."); 
+                    console.warn("Ground image missing"); 
                     this.assetLoaded(); // Proceed anyway
                 };
                 this.images.ground.src = 'media/mountain_ground.png'; 
@@ -68,42 +149,46 @@
                     this.sounds.music = new Audio('media/music.mp3');
                     this.sounds.music.loop = true;
                     this.sounds.music.volume = 0.3; 
-                } catch(e) { console.warn("Sounds failed to init"); }
+                } catch(e) { console.warn("Sound init failed"); }
             },
 
             assetLoaded: function() {
                 this.loaded++;
-                // If all critical images (2) are accounted for (success or fail)
                 if(this.loaded === this.toLoad && this.onReady) {
                     this.onReady();
                 }
             },
 
+            // Safe play methods
             playJump: function() { if(this.sounds.jump) { this.sounds.jump.currentTime = 0; this.sounds.jump.play().catch(e=>{}); } },
             playDeath: function() { if(this.sounds.death) { this.sounds.death.play().catch(e=>{}); } }
         };
 
+        // --- INITIALIZATION ---
         async function startGame() {
             startBtn.disabled = true;
-            startBtn.innerText = "Checking Files...";
+            startBtn.innerText = "Loading Files...";
             errorLog.style.display = 'none';
 
+            // Callback for when images are done/checked
             Assets.onReady = async () => {
                 startBtn.innerText = "Connecting Mic...";
                 await initializeAudio();
             };
 
+            // Start loading
             Assets.loadImages();
             Assets.loadSounds();
         }
 
         async function initializeAudio() {
              if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { 
-                showError("Browser not supported. Use Chrome/Edge."); return; 
+                showError("Browser not supported. Please use Chrome or Edge."); return; 
             }
             try {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 if (audioContext.state === 'suspended') await audioContext.resume();
+                
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 const source = audioContext.createMediaStreamSource(stream);
                 analyser = audioContext.createAnalyser();
@@ -111,18 +196,24 @@
                 source.connect(analyser);
                 dataArray = new Uint8Array(analyser.frequencyBinCount);
 
+                // Start Loop
                 startScreen.style.display = 'none';
                 resetGame();
                 gameRunning = true;
-                if(Assets.sounds.music) Assets.sounds.music.play().catch(e => console.log("Music autoplay blocked - tap screen"));
+                
+                // Try playing music
+                if(Assets.sounds.music) {
+                    Assets.sounds.music.play().catch(e => console.log("Auto-play blocked, touch screen to start music later"));
+                }
+                
                 requestAnimationFrame(gameLoop);
 
             } catch (err) {
                 console.error(err);
                 if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                    showError("Microphone Denied. Refresh and Allow.");
+                    showError("Microphone Access Denied! Please refresh and click 'Allow' in the popup.");
                 } else {
-                    showError("Error: " + err.message);
+                    showError("Error: " + err.message + " (Are you using HTTPS or localhost?)");
                 }
                 startBtn.disabled = false;
                 startBtn.innerText = "Try Again";
@@ -137,17 +228,24 @@
             let sum = 0;
             for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
             let avg = sum / dataArray.length;
-            return Math.min(100, avg * 2.8); 
+            return Math.min(100, avg * 2.8); // Sensitivity Multiplier
         }
 
+        // --- GAME LOGIC ---
         function resetGame() {
             player.y = 320; player.vy = 0; player.grounded = true;
             movingMomentum = false; wasWalking = false;
             distance = 0; speedMultiplier = 1;
             scoreEl.innerText = "0m"; levelEl.innerText = "Level 1";
             obstacles = []; clouds = [];
+            
+            // Initial floor
             obstacles.push({ x: 0, y: 350, w: 800, h: 50, type: 'floor' });
-            for(let i=0; i<6; i++) clouds.push({ x: Math.random() * canvas.width, y: Math.random() * 150, size: 20 + Math.random() * 30, speed: 0.5 + Math.random() * 1 });
+            
+            // Initial clouds
+            for(let i=0; i<6; i++) {
+                clouds.push({ x: Math.random() * canvas.width, y: Math.random() * 150, size: 20 + Math.random() * 30, speed: 0.5 + Math.random() * 1 });
+            }
         }
 
         function calculateDifficulty() {
@@ -172,6 +270,7 @@
                 } else {
                     let width = 300 + Math.random() * 300;
                     obstacles.push({ x: startX, y: 350, w: width, h: 50, type: 'floor' });
+                    
                     let wallChance = Math.min(0.6, 0.3 + (level * 0.05));
                     if (Math.random() < wallChance) {
                         let treeW = 40; let treeH = 80;
@@ -197,22 +296,24 @@
                 if (wantsToJump) {
                     player.vy = CONFIG.jumpForce;
                     player.grounded = false;
-                    movingMomentum = wasWalking;
+                    movingMomentum = wasWalking; // Momentum logic
                     Assets.playJump(); 
                     statusEl.innerText = movingMomentum ? "JUMP FWD" : "JUMP UP";
                     statusEl.style.color = "#e74c3c";
                 } else {
                     movingMomentum = wantsToWalk;
                     wasWalking = wantsToWalk;
-                    statusEl.innerText = movingMomentum ? "WALKING" : "STOPPED";
+                    statusEl.innerText = movingMomentum ? "RUNNING" : "STOPPED";
                     statusEl.style.color = movingMomentum ? "#2ecc71" : "#bdc3c7";
                 }
             } else {
                 if (movingMomentum) { statusEl.innerText = "FLYING"; statusEl.style.color = "#e74c3c"; }
             }
 
-            player.vy += CONFIG.gravity; player.y += player.vy;
+            player.vy += CONFIG.gravity; 
+            player.y += player.vy;
 
+            // Move World
             if (movingMomentum) {
                 let currentSpeed = CONFIG.baseSpeed * speedMultiplier;
                 distance += currentSpeed;
@@ -222,10 +323,14 @@
                 spawnTerrain(); spawnClouds();
             }
 
+            // Cleanup clouds
             for (let i = clouds.length - 1; i >= 0; i--) { if (clouds[i].x < -100) clouds.splice(i, 1); }
 
+            // Collision Detection
             player.grounded = false; 
-            let pB = player.y + player.height/2; let pR = player.x + player.width/2; let pL = player.x - player.width/2;
+            let pB = player.y + player.height/2; 
+            let pR = player.x + player.width/2; 
+            let pL = player.x - player.width/2;
 
             for (let i = obstacles.length - 1; i >= 0; i--) {
                 let ob = obstacles[i];
@@ -244,36 +349,65 @@
             if (player.y > canvas.height + 50) gameOver();
         }
 
+        // --- DRAWING ---
         function drawReindeer(x, y, grounded) {
             let startX = x - 15; let startY = y - 15;
-            ctx.fillStyle = "#8B4513"; ctx.fillRect(startX + 5, startY + 10, 20, 12); 
-            ctx.fillStyle = "#A0522D"; ctx.fillRect(startX + 20, startY + 5, 10, 10); 
-            ctx.fillStyle = "#FF0000"; ctx.fillRect(startX + 28, startY + 8, 4, 4);
-            ctx.fillStyle = "#5D4037"; 
+            ctx.fillStyle = "#8B4513"; ctx.fillRect(startX + 5, startY + 10, 20, 12); // Body
+            ctx.fillStyle = "#A0522D"; ctx.fillRect(startX + 20, startY + 5, 10, 10); // Head
+            ctx.fillStyle = "#FF0000"; ctx.fillRect(startX + 28, startY + 8, 4, 4); // Nose
+            ctx.fillStyle = "#5D4037"; // Legs
             if (grounded) { ctx.fillRect(startX + 8, startY + 22, 4, 8); ctx.fillRect(startX + 20, startY + 22, 4, 8); } 
             else { ctx.fillRect(startX + 5, startY + 20, 4, 6); ctx.fillRect(startX + 22, startY + 24, 4, 6); }
-            ctx.fillStyle = "#D2B48C";
+            ctx.fillStyle = "#D2B48C"; // Antlers
             ctx.fillRect(startX + 21, startY, 2, 5); ctx.fillRect(startX + 19, startY-3, 2, 3);
             ctx.fillRect(startX + 26, startY, 2, 5); ctx.fillRect(startX + 28, startY-3, 2, 3);
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Clouds
             ctx.fillStyle = "rgba(236, 240, 241, 0.8)";
             for (let c of clouds) { ctx.fillRect(c.x, c.y, c.size, c.size/2); ctx.fillRect(c.x+5, c.y-5, c.size-10, c.size/2+5); }
             
+            // Obstacles
             for (let ob of obstacles) {
                 if (ob.type === 'pit_marker') continue;
+                
                 if (ob.type === 'tree') {
-                    // Safety check: is image really loaded?
-                    if(Assets.images.tree.complete && Assets.images.tree.naturalHeight !== 0) {
+                    // Safety: Check if image is loaded and valid
+                    if(Assets.images.tree.complete && Assets.images.tree.naturalWidth > 0) {
                          ctx.drawImage(Assets.images.tree, ob.x, ob.y, ob.w, ob.h);
                     } else {
-                        // Fallback: Draw green box if missing
-                        ctx.fillStyle = 'green'; ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
+                        // Fallback Box (Green)
+                        ctx.fillStyle = '#27ae60'; ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
                     }
                 } else {
-                    if(Assets.images.ground.complete && Assets.images.ground.naturalHeight !== 0) {
+                    // Ground
+                    if(Assets.images.ground.complete && Assets.images.ground.naturalWidth > 0) {
                         let pattern = ctx.createPattern(Assets.images.ground, 'repeat');
                         ctx.fillStyle = pattern;
-                        ctx.save();
+                        ctx.save(); ctx.translate(ob.x, ob.y); ctx.fillRect(0, 0, ob.w, ob.h); ctx.restore();
+                    } else {
+                        // Fallback Box (Brown)
+                        ctx.fillStyle = '#5d4037'; ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
+                    }
+                }
+            }
+            drawReindeer(player.x, player.y, player.grounded);
+        }
+
+        function gameOver() {
+            if(gameRunning) Assets.playDeath();
+            if(Assets.sounds.music) Assets.sounds.music.pause();
+            gameRunning = false;
+            startScreen.style.display = 'block';
+            startScreen.querySelector('h1').innerText = "GAME OVER";
+            startBtn.innerText = "TRY AGAIN";
+            startBtn.disabled = false;
+        }
+
+        function gameLoop() { if (gameRunning) { update(); draw(); requestAnimationFrame(gameLoop); } }
+    </script>
+</body>
+</html>
