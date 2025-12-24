@@ -20,7 +20,7 @@
         }
         #ui-layer {
             position: absolute; top: 10px; left: 10px; right: 10px; pointer-events: none;
-            background: rgba(44, 62, 80, 0.9);
+            background: rgba(44, 62, 80, 0.9); /* Dark UI bg */
             padding: 10px; border: 2px solid #1a252f; color: #ecf0f1;
             box-shadow: 3px 3px 0px rgba(0,0,0,0.6);
             display: flex; flex-direction: column; gap: 5px; max-width: 400px; margin: 0 auto;
@@ -68,7 +68,7 @@
         <h1 style="font-size: 22px; margin-bottom: 10px;">Mountain Adventure</h1>
         <p><b>1. Talk:</b> Walk Forward</p>
         <p><b>2. Shout:</b> Jump</p>
-        <p style="font-size:11px; color:#555;">Files must be in "media" folder!</p>
+        <p style="font-size:11px; color:#555;">Ensure audio files are in folder!</p>
         <button id="start-btn" onclick="startGame()">START GAME</button>
         <p id="error-log" class="error-msg"></p>
     </div>
@@ -108,35 +108,35 @@
         let obstacles = [];
         let clouds = [];
 
-        // --- ASSET LOADER (Updated for media folder) ---
+        // --- ASSET LOADER ---
         const Assets = {
             images: {},
             sounds: {},
             loaded: 0,
+            // Total assets to wait for (2 images)
+            // Sounds are loaded asynchronously and don't block game start
             toLoad: 2, 
             onReady: null,
 
             loadImages: function() {
                 this.images.tree = new Image();
                 this.images.tree.onload = () => { this.assetLoaded(); };
-                // UPDATED PATH:
-                this.images.tree.src = 'media/pine_tree.png'; 
+                this.images.tree.src = 'pine_tree.png'; // MUST EXIST
 
                 this.images.ground = new Image();
                 this.images.ground.onload = () => { this.assetLoaded(); };
-                // UPDATED PATH:
-                this.images.ground.src = 'media/mountain_ground.png'; 
+                this.images.ground.src = 'mountain_ground.png'; // MUST EXIST
             },
 
             loadSounds: function() {
+                // These files must exist or sounds won't play
                 try {
-                    // UPDATED PATHS:
-                    this.sounds.jump = new Audio('media/jump.wav');
-                    this.sounds.death = new Audio('media/death.wav');
-                    this.sounds.music = new Audio('media/music.mp3');
+                    this.sounds.jump = new Audio('jump.wav');
+                    this.sounds.death = new Audio('death.wav');
+                    this.sounds.music = new Audio('music.mp3');
                     this.sounds.music.loop = true;
-                    this.sounds.music.volume = 0.3; 
-                } catch(e) { console.warn("Sounds not found in media folder"); }
+                    this.sounds.music.volume = 0.3; // Keep music low so mic works well
+                } catch(e) { console.warn("Sounds not found"); }
             },
 
             assetLoaded: function() {
@@ -155,11 +155,14 @@
             startBtn.innerText = "Loading Assets...";
             errorLog.style.display = 'none';
 
+            // Setup Asset Callbacks
             Assets.onReady = async () => {
+                // Assets loaded, now initialize Mic
                 startBtn.innerText = "Connecting Mic...";
                 await initializeAudio();
             };
 
+            // Start Loading
             Assets.loadImages();
             Assets.loadSounds();
         }
@@ -178,6 +181,7 @@
                 source.connect(analyser);
                 dataArray = new Uint8Array(analyser.frequencyBinCount);
 
+                // Start Game
                 startScreen.style.display = 'none';
                 resetGame();
                 gameRunning = true;
@@ -213,6 +217,7 @@
             distance = 0; speedMultiplier = 1;
             scoreEl.innerText = "0m"; levelEl.innerText = "Level 1";
             obstacles = []; clouds = [];
+            // Initial long floor
             obstacles.push({ x: 0, y: 350, w: 800, h: 50, type: 'floor' });
             for(let i=0; i<6; i++) clouds.push({ x: Math.random() * canvas.width, y: Math.random() * 150, size: 20 + Math.random() * 30, speed: 0.5 + Math.random() * 1 });
         }
@@ -241,7 +246,10 @@
                     obstacles.push({ x: startX, y: 350, w: width, h: 50, type: 'floor' });
                     let wallChance = Math.min(0.6, 0.3 + (level * 0.05));
                     if (Math.random() < wallChance) {
-                        let treeW = 40; let treeH = 80;
+                        // PINE TREE OBSTACLE
+                        // Using fixed sizes based on the expected sprite
+                        let treeW = 40; 
+                        let treeH = 80;
                         obstacles.push({ x: startX + 50 + Math.random() * (width - 150), y: 350 - treeH, w: treeW, h: treeH, type: 'tree' });
                     }
                 }
@@ -265,7 +273,7 @@
                     player.vy = CONFIG.jumpForce;
                     player.grounded = false;
                     movingMomentum = wasWalking;
-                    Assets.playJump(); 
+                    Assets.playJump(); // Play WAV
                     statusEl.innerText = movingMomentum ? "JUMP FWD" : "JUMP UP";
                     statusEl.style.color = "#e74c3c";
                 } else {
@@ -326,18 +334,32 @@
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Darker Clouds for mountain feel
             ctx.fillStyle = "rgba(236, 240, 241, 0.8)";
             for (let c of clouds) { ctx.fillRect(c.x, c.y, c.size, c.size/2); ctx.fillRect(c.x+5, c.y-5, c.size-10, c.size/2+5); }
             
             for (let ob of obstacles) {
                 if (ob.type === 'pit_marker') continue;
+                
                 if (ob.type === 'tree') {
-                    if(Assets.images.tree.complete) ctx.drawImage(Assets.images.tree, ob.x, ob.y, ob.w, ob.h);
+                    // DRAW THE PINE TREE IMAGE
+                    // Ensure image is loaded before drawing
+                    if(Assets.images.tree.complete) {
+                         ctx.drawImage(Assets.images.tree, ob.x, ob.y, ob.w, ob.h);
+                    }
                 } else {
+                    // DRAW MOUNTAIN GROUND PATTERN
                     if(Assets.images.ground.complete) {
+                         // Create a repeating pattern from the ground image
                         let pattern = ctx.createPattern(Assets.images.ground, 'repeat');
                         ctx.fillStyle = pattern;
-                        ctx.save(); ctx.translate(ob.x, ob.y); ctx.fillRect(0, 0, ob.w, ob.h); ctx.restore();
+                        
+                        // Translate context so the pattern moves with the ground object
+                        ctx.save();
+                        ctx.translate(ob.x, ob.y);
+                        ctx.fillRect(0, 0, ob.w, ob.h);
+                        ctx.restore();
                     }
                 }
             }
