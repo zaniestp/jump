@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Reindeer Mountain Adventure</title>
+    <title>Reindeer Mountain Adventure: House Edition</title>
     <style>
         body {
             margin: 0; overflow: hidden;
@@ -117,19 +117,27 @@
             images: {},
             sounds: {},
             loaded: 0,
-            toLoad: 2, 
+            toLoad: 3, // Tree, Ground, House
             onReady: null,
 
             loadImages: function() {
+                // 1. Tree
                 this.images.tree = new Image();
                 this.images.tree.onload = () => { console.log("Tree loaded"); this.assetLoaded(); };
                 this.images.tree.onerror = () => { console.warn("Tree missing"); this.assetLoaded(); };
                 this.images.tree.src = 'media/pine_tree.png'; 
 
+                // 2. Ground
                 this.images.ground = new Image();
                 this.images.ground.onload = () => { console.log("Ground loaded"); this.assetLoaded(); };
                 this.images.ground.onerror = () => { console.warn("Ground missing"); this.assetLoaded(); };
                 this.images.ground.src = 'media/mountain_ground.png'; 
+
+                // 3. House (NEW)
+                this.images.house = new Image();
+                this.images.house.onload = () => { console.log("House loaded"); this.assetLoaded(); };
+                this.images.house.onerror = () => { console.warn("House missing"); this.assetLoaded(); };
+                this.images.house.src = 'media/house.png'; 
             },
 
             loadSounds: function() {
@@ -158,8 +166,6 @@
             startBtn.disabled = true;
             errorLog.style.display = 'none';
 
-            // FIX: If we played once, assets are already loaded. 
-            // Skip loading and go straight to audio init.
             if (Assets.loaded >= Assets.toLoad) {
                 startBtn.innerText = "Restarting...";
                 await initializeAudio();
@@ -265,8 +271,30 @@
                     
                     let wallChance = Math.min(0.6, 0.3 + (level * 0.05));
                     if (Math.random() < wallChance) {
-                        let treeW = 40; let treeH = 80;
-                        obstacles.push({ x: startX + 50 + Math.random() * (width - 150), y: 350 - treeH, w: treeW, h: treeH, type: 'tree' });
+                        
+                        // --- HOUSE LOGIC START ---
+                        let spawnHouse = false;
+                        
+                        // Condition: Distance > 300m
+                        if (distance > 3000) { // 300m = 3000 distance units
+                            let houseProb = 0.2; // 20% chance
+                            if (distance > 4900) { // 490m = 4900 distance units
+                                houseProb = 0.6; // 60% chance (More frequent)
+                            }
+                            if (Math.random() < houseProb) spawnHouse = true;
+                        }
+                        
+                        if (spawnHouse) {
+                            // Spawn House
+                            let houseSize = 60; // Size of house
+                            obstacles.push({ x: startX + 50 + Math.random() * (width - 150), y: 350 - houseSize, w: houseSize, h: houseSize, type: 'house' });
+                        } else {
+                            // Spawn Tree (Default)
+                            let treeW = 40; let treeH = 80;
+                            obstacles.push({ x: startX + 50 + Math.random() * (width - 150), y: 350 - treeH, w: treeW, h: treeH, type: 'tree' });
+                        }
+                        // --- HOUSE LOGIC END ---
+                        
                     }
                 }
             }
@@ -327,7 +355,12 @@
                 if (ob.type === 'pit_marker') continue;
 
                 if (pR > ob.x && pL < ob.x + ob.w && pB > ob.y && player.y - player.height/2 < ob.y + ob.h) {
-                    if (ob.type === 'tree') { gameOver(); return; } 
+                    
+                    // Collision with Obstacles (Tree OR House)
+                    if (ob.type === 'tree' || ob.type === 'house') { 
+                        gameOver(); return; 
+                    } 
+                    
                     if (ob.type === 'floor') {
                         if (player.vy >= 0 && pB <= ob.y + 20) {
                             player.y = ob.y - player.height/2; player.vy = 0; player.grounded = true;
@@ -338,6 +371,7 @@
             if (player.y > canvas.height + 50) gameOver();
         }
 
+        // --- DRAWING ---
         function drawReindeer(x, y, grounded) {
             let startX = x - 15; let startY = y - 15;
             ctx.fillStyle = "#8B4513"; ctx.fillRect(startX + 5, startY + 10, 20, 12); 
@@ -359,18 +393,34 @@
             for (let ob of obstacles) {
                 if (ob.type === 'pit_marker') continue;
                 
-                if (ob.type === 'tree') {
+                // DRAW HOUSE
+                if (ob.type === 'house') {
+                    if(Assets.images.house.complete && Assets.images.house.naturalWidth > 0) {
+                         ctx.drawImage(Assets.images.house, ob.x, ob.y, ob.w, ob.h);
+                    } else {
+                        // Fallback Box (Purple)
+                        ctx.fillStyle = '#9b59b6'; ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
+                    }
+                }
+                
+                // DRAW TREE
+                else if (ob.type === 'tree') {
                     if(Assets.images.tree.complete && Assets.images.tree.naturalWidth > 0) {
                          ctx.drawImage(Assets.images.tree, ob.x, ob.y, ob.w, ob.h);
                     } else {
+                        // Fallback Box (Green)
                         ctx.fillStyle = '#27ae60'; ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
                     }
-                } else {
+                } 
+                
+                // DRAW GROUND
+                else {
                     if(Assets.images.ground.complete && Assets.images.ground.naturalWidth > 0) {
                         let pattern = ctx.createPattern(Assets.images.ground, 'repeat');
                         ctx.fillStyle = pattern;
                         ctx.save(); ctx.translate(ob.x, ob.y); ctx.fillRect(0, 0, ob.w, ob.h); ctx.restore();
                     } else {
+                        // Fallback Box (Brown)
                         ctx.fillStyle = '#5d4037'; ctx.fillRect(ob.x, ob.y, ob.w, ob.h);
                     }
                 }
