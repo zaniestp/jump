@@ -106,7 +106,7 @@
 
         let audioContext, analyser, dataArray;
         let gameRunning = false;
-        let distance = 4900;
+        let distance = 0;
         let speedMultiplier = 1;
         
         let player = { x: 150, y: 320, width: 30, height: 30, vy: 0, grounded: true };
@@ -238,7 +238,7 @@
         function resetGame() {
             player.y = 320; player.vy = 0; player.grounded = true;
             movingMomentum = false; wasWalking = false;
-            distance = 4900; speedMultiplier = 1;
+            distance = 0; speedMultiplier = 1;
             scoreEl.innerText = "0m"; levelEl.innerText = "Level 1";
             obstacles = []; clouds = [];
             
