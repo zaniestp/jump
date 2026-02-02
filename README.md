@@ -1,6 +1,6 @@
 # jump
 A jumping game using voice
-##https://zaniestp.github.io/jump/
+## https://zaniestp.github.io/jump/
 *********************************************************
 ```text
       /\_/\
